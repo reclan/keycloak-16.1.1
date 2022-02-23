@@ -20,7 +20,8 @@ public enum SamlPrincipalType {
 
     SUBJECT,
     ATTRIBUTE,
-    FRIENDLY_ATTRIBUTE;
+    FRIENDLY_ATTRIBUTE,
+    TEMPLATED_ATTRIBUTE;
 
     public static SamlPrincipalType from(String name, SamlPrincipalType defaultValue) {
         if (name == null) {

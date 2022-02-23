@@ -1009,6 +1009,10 @@ module.controller('RealmIdentityProviderCtrl', function($scope, $filter, $upload
                 type: "FRIENDLY_ATTRIBUTE",
                 name: "Attribute [Friendly Name]"
 
+            },
+            {
+                type: "TEMPLATED_ATTRIBUTE",
+                name: "Template"
             }
         ];
         if (instance && instance.alias) {

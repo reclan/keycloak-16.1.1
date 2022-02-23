@@ -47,6 +47,7 @@ import org.keycloak.models.KeyManager;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.RealmModel;
 import org.keycloak.models.UserSessionModel;
+import org.keycloak.models.utils.KeycloakModelUtils;
 import org.keycloak.protocol.LoginProtocol;
 import org.keycloak.protocol.LoginProtocolFactory;
 import org.keycloak.protocol.saml.JaxrsSAML2BindingBuilder;
@@ -100,6 +101,9 @@ import java.util.Optional;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
+import java.util.function.UnaryOperator;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import org.keycloak.protocol.saml.SamlPrincipalType;
@@ -119,6 +123,8 @@ import java.security.cert.CertificateException;
 import java.util.Collections;
 import javax.ws.rs.core.MultivaluedMap;
 import javax.xml.crypto.dsig.XMLSignature;
+
+import static org.keycloak.broker.saml.mappers.UsernameTemplateMapper.TRANSFORMERS;
 
 /**
  * @author <a href="mailto:bill@burkecentral.com">Bill Burke</a>
@@ -761,10 +767,55 @@ public class SAMLEndpoint {
             return subjectNameID != null ? subjectNameID.getValue() : null;
         } else if (principalType.equals(SamlPrincipalType.ATTRIBUTE)) {
             return getAttributeByName(assertion, config.getPrincipalAttribute());
-        } else {
+        } else if (principalType.equals(SamlPrincipalType.FRIENDLY_ATTRIBUTE)) {
             return getAttributeByFriendlyName(assertion, config.getPrincipalAttribute());
+        } else {
+            return getPrincipalFromTemplate(assertion, config.getPrincipalAttribute());
         }
+    }
 
+    private static final Pattern SUBSTITUTION = Pattern.compile("\\$\\{([^}]+?)(?:\\s*\\|\\s*(\\S+)\\s*)?\\}");
+
+    private String getPrincipalFromTemplate(AssertionType assertion, String template) {
+        Matcher m = SUBSTITUTION.matcher(template);
+        StringBuffer sb = new StringBuffer();
+        while (m.find()) {
+            String variable = m.group(1);
+            UnaryOperator<String> transformer = Optional.ofNullable(m.group(2)).map(TRANSFORMERS::get).orElse(UnaryOperator.identity());
+
+            if (variable.equals("ALIAS")) {
+                m.appendReplacement(sb, transformer.apply(config.getAlias()));
+            } else if (variable.equals("UUID")) {
+                m.appendReplacement(sb, transformer.apply(KeycloakModelUtils.generateId()));
+            } else if (variable.equals("NAMEID")) {
+                SubjectType subject = assertion.getSubject();
+                SubjectType.STSubType subType = subject.getSubType();
+                NameIDType subjectNameID = (NameIDType) subType.getBaseID();
+                m.appendReplacement(sb, transformer.apply(subjectNameID.getValue()));
+            } else if (variable.startsWith("ATTRIBUTE.")) {
+                String name = variable.substring("ATTRIBUTE.".length());
+                String value = "";
+                for (AttributeStatementType statement : assertion.getAttributeStatements()) {
+                    for (AttributeStatementType.ASTChoiceType choice : statement.getAttributes()) {
+                        AttributeType attr = choice.getAttribute();
+                        if (name.equals(attr.getName()) || name.equals(attr.getFriendlyName())) {
+                            List<Object> attributeValue = attr.getAttributeValue();
+                            if (attributeValue != null && !attributeValue.isEmpty()) {
+                                value = attributeValue.get(0).toString();
+                            }
+                            break;
+                        }
+                    }
+                }
+                m.appendReplacement(sb, transformer.apply(value));
+            } else {
+                m.appendReplacement(sb, m.group(1));
+            }
+
+        }
+        m.appendTail(sb);
+
+        return sb.toString();
     }
 
     private String getFirstMatchingAttribute(AssertionType assertion, Predicate<AttributeType> predicate) {
@@ -787,6 +838,7 @@ public class SAMLEndpoint {
                 return principalType.name();
             case ATTRIBUTE:
             case FRIENDLY_ATTRIBUTE:
+            case TEMPLATED_ATTRIBUTE:
                 return String.format("%s(%s)", principalType.name(), config.getPrincipalAttribute());
             default:
                 return null;
