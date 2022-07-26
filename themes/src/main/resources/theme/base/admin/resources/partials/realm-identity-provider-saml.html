@@ -181,12 +181,16 @@
                 <kc-tooltip>{{:: 'saml.principal-type.tooltip' | translate}}</kc-tooltip>
             </div>
             <div class="form-group clearfix" data-ng-show="identityProvider.config.principalType.endsWith('ATTRIBUTE')">
-                <label class="col-md-2 control-label" for="principalAttribute">{{:: 'saml.principal-attribute' | translate}}</label>
+                <label class="col-md-2 control-label" for="principalAttribute" data-ng-show="!identityProvider.config.principalType.startsWith('TEMPLATED')">{{:: 'saml.principal-attribute' | translate}}</label>
+                <label class="col-md-2 control-label" for="principalAttribute" data-ng-show="identityProvider.config.principalType.startsWith('TEMPLATED')">{{:: 'saml.principal-template' | translate}}</label>
                 <div class="col-md-6">
                     <input class="form-control" id="principalAttribute" type="text" ng-model="identityProvider.config.principalAttribute" ng-required="identityProvider.config.principalType.endsWith('ATTRIBUTE')">
                 </div>
-                <kc-tooltip>{{:: 'saml.principal-attribute.tooltip' | translate}}</kc-tooltip>
-            </div>
+                <kc-tooltip>
+                    <div data-ng-show="!identityProvider.config.principalType.startsWith('TEMPLATED')">{{:: 'saml.principal-attribute.tooltip' | translate}}</div>
+                    <div data-ng-show="identityProvider.config.principalType.startsWith('TEMPLATED')">{{:: 'saml.principal-template.tooltip' | translate}}</div>
+                </kc-tooltip>
+             </div>
              <div class="form-group">
                 <label class="col-md-2 control-label" for="allowCreate">{{:: 'saml.allow-create' | translate}}</label>
                 <div class="col-md-6">
